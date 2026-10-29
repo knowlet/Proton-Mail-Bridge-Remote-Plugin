@@ -20,6 +20,6 @@ Your use of Proton, OpenAI, GitHub, Homebrew, and other dependencies is also sub
 
 Project questions and bug reports may be filed in the [issue tracker](https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin/issues). Remove secrets and private mail before posting. No response time or continuing maintenance is promised by this document.
 
-Service interfaces and third-party requirements can change. Inspect the current source, release notes, and official service documentation before deploying or upgrading. A public setup-plugin release, if published, remains distinct from each user's private mail connection.
+Service interfaces and third-party requirements can change. Inspect the current source, release notes, and official service documentation before deploying or upgrading. A ChatGPT directory release, if approved, remains distinct from each user's private mail connection.
 
 See [Privacy](PRIVACY.md) for the implementation's data flow and [Security](SECURITY.md) for reporting guidance.

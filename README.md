@@ -6,7 +6,7 @@ Connect your own Proton mailbox to ChatGPT and dot through a Mac running Proton 
 
 ## Project and publication status
 
-The source is available under the [MIT license](LICENSE). The public setup plugin is **not yet published**; there is no public installation link at this time. Its purpose is to guide setup and operation of your own private connection. Installing a setup skill does not grant mail access.
+The source is available under the [MIT license](LICENSE), and the generic setup-plugin ZIP is publicly downloadable from [GitHub Releases](https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin/releases/tag/v0.3.0). The **ChatGPT directory listing is pending**: the submission portal currently blocks upload on developer-identity verification, so there is no public directory installation link yet. Installing the setup skill does not grant mail access.
 
 OpenAI currently supports Secure MCP Tunnel for private connections, not public plugin distribution. A public remote MCP plugin requires a stable public HTTPS endpoint. Therefore, your personal tunnel and mailbox connection must remain private. See the [official tunnel guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels).
 
@@ -33,7 +33,7 @@ The Mac initiates the tunnel connection over outbound HTTPS. You do not need rou
 
 ## Choose a setup route
 
-**Route A — use our setup plugin when published.** Install the public setup plugin from its verified listing, then ask it to set up your own private Bridge tunnel. Publication is pending, so use Route B today. The public setup plugin will provide instructions; your private connector supplies mail tools after you finish setup.
+**Route A — install our publicly released setup-plugin ZIP.** Download `proton-mail-bridge-setup-0.3.0.zip` from [the release page](https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin/releases/tag/v0.3.0). In ChatGPT web, open Plugins → Add → Upload plugin archive and select that ZIP, if archive installation is available to your account. Install the resulting personal setup plugin and ask it to set up your own private Bridge tunnel. When a directory listing is approved, a verified directory link will be added here. The setup plugin provides instructions; your separately created private connector supplies mail tools. If archive installation is unavailable, use Route B.
 
 **Route B — give ChatGPT or Codex this repository.** Use an agent with terminal access to the Mac and browser access to your OpenAI account. Copy the complete [Agent Prompt](docs/AGENT_PROMPT.md). A cloud-only chat cannot directly configure your Mac; it can guide the local steps. You can also follow the manual instructions below.
 
