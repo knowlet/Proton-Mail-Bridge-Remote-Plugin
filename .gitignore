@@ -1,0 +1,32 @@
+# Local credentials, certificates, mail, and runtime state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keychain
+*.keychain-db
+*.eml
+*.mbox
+*.log
+deployment.json
+handoff.json
+health-url
+runtime.pid
+.config/
+
+# Python and generated artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+*.zip
+.DS_Store

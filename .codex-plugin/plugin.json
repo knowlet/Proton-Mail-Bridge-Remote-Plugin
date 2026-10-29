@@ -1,0 +1,37 @@
+{
+  "name": "proton-mail-bridge",
+  "version": "0.3.0",
+  "description": "Open-source setup instructions and local tools for connecting your own Proton Mail Bridge privately to ChatGPT with Secure MCP Tunnel.",
+  "author": {
+    "name": "knowlet",
+    "url": "https://github.com/knowlet"
+  },
+  "license": "MIT",
+  "keywords": [
+    "proton",
+    "mail",
+    "bridge",
+    "macos",
+    "mcp",
+    "tunnel",
+    "setup"
+  ],
+  "interface": {
+    "displayName": "Proton Mail Bridge Setup",
+    "shortDescription": "Set up private Proton mail",
+    "longDescription": "Set up and troubleshoot your own Proton Mail Bridge on a Mac, then connect it privately to ChatGPT using OpenAI Secure MCP Tunnel. Includes step-by-step guidance, local setup/deployment source, and separate verification for ChatGPT, mobile and dot. Each user supplies their own Proton subscription, Bridge login, TLS certificate, tunnel and runtime key. This instructional plugin does not include a hosted mailbox or a shared mail connector. Mailbox access requires a separately configured private connector. Unofficial community project, not affiliated with Proton or OpenAI.",
+    "developerName": "knowlet",
+    "category": "Communication",
+    "defaultPrompt": [
+      "Help me set up my own Proton Mail Bridge and a private ChatGPT tunnel.",
+      "Troubleshoot my Proton Mail Bridge tunnel without exposing credentials.",
+      "Verify my private Proton connection on ChatGPT, mobile and dot."
+    ],
+    "websiteURL": "https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin#readme",
+    "supportURL": "https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin/issues",
+    "privacyPolicyURL": "https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin/blob/main/docs/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/knowlet/Proton-Mail-Bridge-Remote-Plugin/blob/main/docs/TERMS.md",
+    "logo": "./assets/icon.png",
+    "composerIcon": "./assets/icon.png"
+  }
+}
