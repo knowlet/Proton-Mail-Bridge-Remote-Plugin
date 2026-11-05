@@ -287,6 +287,8 @@ def create_server(config=_LOAD_CONFIG) -> FastMCP:
         safe_text(mailbox, "mailbox")
         valid_limit(limit)
         params = upstream.ListRecentInput(mailbox=mailbox, limit=limit)
+        # Upstream strips strings; mailbox whitespace is part of its identity.
+        params = params.model_copy(update={"mailbox": mailbox})
         return await access.invoke(upstream.proton_list_recent, params, ctx)
 
     @server.tool(annotations=read)
@@ -310,6 +312,7 @@ def create_server(config=_LOAD_CONFIG) -> FastMCP:
             mailbox=mailbox, from_addr=from_addr, to_addr=to_addr, subject=subject,
             text=text, since=since, before=before, unseen=unseen, flagged=flagged, limit=limit,
         )
+        params = params.model_copy(update={"mailbox": mailbox})
         return await access.invoke(search_messages, params, ctx)
 
     @server.tool(annotations=read)
@@ -318,6 +321,7 @@ def create_server(config=_LOAD_CONFIG) -> FastMCP:
         valid_uid(uid)
         safe_text(mailbox, "mailbox")
         params = upstream.ReadEmailInput(uid=uid, mailbox=mailbox, mark_seen=False, include_html=False)
+        params = params.model_copy(update={"mailbox": mailbox})
         return await access.invoke(upstream.proton_read_email, params, ctx)
 
     if mode in {"drafts", "send"}:
@@ -421,3 +425,4 @@ def create_server(config=_LOAD_CONFIG) -> FastMCP:
 
 if __name__ == "__main__":
     create_server().run(transport="stdio")
+

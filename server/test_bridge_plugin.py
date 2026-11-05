@@ -21,6 +21,19 @@ def fn(server, name):
 
 
 class PluginTests(unittest.IsolatedAsyncioTestCase):
+    async def test_read_tools_preserve_exact_mailbox_names(self):
+        server = plugin.create_server(CONFIG)
+        for mailbox in [" Archive ", " Archive", "Archive ", " INBOX "]:
+            for name, extra in [
+                ("proton_list_recent", {}),
+                ("proton_search_emails", {"subject": "invoice"}),
+                ("proton_read_email", {"uid": "42"}),
+            ]:
+                with self.subTest(mailbox=repr(mailbox), tool=name), \
+                     patch.object(plugin.MailAccess, "invoke", new_callable=AsyncMock) as invoke:
+                    await fn(server, name)(ctx=SimpleNamespace(), mailbox=mailbox, **extra)
+                    self.assertEqual(invoke.await_args.args[1].mailbox, mailbox)
+
     async def test_missing_setup_starts_and_does_not_touch_keychain_or_network(self):
         with patch.object(plugin, "load_config", return_value=None), \
              patch.object(plugin.subprocess, "run") as command, \
@@ -163,3 +176,4 @@ class PluginTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
