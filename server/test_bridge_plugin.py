@@ -52,6 +52,33 @@ class PluginTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("mark_seen", read.inputSchema["properties"])
             self.assertNotIn("include_html", read.inputSchema["properties"])
 
+    async def test_quoted_folder_names_round_trip_without_extra_escaping(self):
+        server = plugin.create_server(CONFIG)
+        names = ['Folder "quoted"', r"Folder \ archived", r'Folder \"quoted"',
+                 "Folder trailing\\", r"Folder \\ archived",
+                 "Folder with spaces", "INBOX", "&ZeVnLIqe-"]
+        for mailbox in names:
+            with self.subTest(mailbox=mailbox):
+                client = MagicMock()
+                wire_name = plugin.upstream._quote(mailbox)
+                client.list.return_value = ("OK", [f'(\\HasNoChildren) "/" {wire_name}'.encode()])
+                client.select.return_value = ("OK", [b"0"])
+                client.uid.return_value = ("OK", [b""])
+
+                async def call(operation):
+                    return operation(client)
+
+                with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock), \
+                     patch.object(plugin.upstream, "_imap_call", side_effect=call):
+                    ctx = SimpleNamespace(info=AsyncMock())
+                    folders = await fn(server, "proton_list_folders")(ctx=ctx)
+                    self.assertTrue(folders["ok"])
+                    self.assertEqual(folders["data"], {"count": 1, "mailboxes": [mailbox]})
+                    result = await fn(server, "proton_list_recent")(
+                        ctx=ctx, mailbox=folders["data"]["mailboxes"][0])
+                self.assertTrue(result["ok"])
+                client.select.assert_called_once_with(wire_name, readonly=True)
+
     async def test_read_is_forced_to_peek_without_html(self):
         server = plugin.create_server(CONFIG)
         with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock), \
@@ -61,6 +88,46 @@ class PluginTests(unittest.IsolatedAsyncioTestCase):
         args = reader.await_args.args[0]
         self.assertFalse(args.mark_seen)
         self.assertFalse(args.include_html)
+
+    async def test_folder_listing_preserves_atoms_and_decodes_only_imap_escapes(self):
+        client = MagicMock()
+        client.list.return_value = ("OK", [
+            b'() "/" INBOX', b'() "/" "Folder \\\\n"',
+            b'() "/" "Folder \\\\u0041"', None, b"", b"not a LIST response",
+            rb'() "/" "Folder \"quoted\""',
+        ])
+
+        async def call(operation):
+            return operation(client)
+
+        server = plugin.create_server(CONFIG)
+        with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock), \
+             patch.object(plugin.upstream, "_imap_call", side_effect=call):
+            result = await fn(server, "proton_list_folders")(ctx=SimpleNamespace())
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"], {
+            "count": 4, "mailboxes": ['Folder "quoted"', r"Folder \n", r"Folder \u0041", "INBOX"],
+        })
+
+    async def test_folder_listing_handles_empty_and_failed_responses(self):
+        server = plugin.create_server(CONFIG)
+        for response in [("OK", [None]), ("OK", []), ("NO", [b"private failure detail"])]:
+            with self.subTest(response=response):
+                client = MagicMock()
+                client.list.return_value = response
+
+                async def call(operation):
+                    return operation(client)
+
+                with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock), \
+                     patch.object(plugin.upstream, "_imap_call", side_effect=call):
+                    result = await fn(server, "proton_list_folders")(ctx=SimpleNamespace())
+                self.assertEqual(result["ok"], response[0] == "OK")
+                if result["ok"]:
+                    self.assertEqual(result["data"], {"count": 0, "mailboxes": []})
+                else:
+                    self.assertEqual(result["code"], "bridge_operation_failed")
+                self.assertNotIn("private failure detail", json.dumps(result))
 
     async def test_invalid_uids_and_header_injections_fail_before_mail_access(self):
         server = plugin.create_server(CONFIG)
@@ -99,7 +166,7 @@ class PluginTests(unittest.IsolatedAsyncioTestCase):
     async def test_raw_errors_are_not_returned(self):
         server = plugin.create_server(CONFIG)
         with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock), \
-             patch.object(plugin.upstream, "proton_list_folders", new_callable=AsyncMock, return_value="Error: sensitive local detail"):
+             patch.object(plugin, "list_folders", new_callable=AsyncMock, return_value="Error: sensitive local detail"):
             result = await fn(server, "proton_list_folders")(ctx=SimpleNamespace())
         self.assertFalse(result["ok"])
         self.assertNotIn("sensitive local detail", json.dumps(result))
