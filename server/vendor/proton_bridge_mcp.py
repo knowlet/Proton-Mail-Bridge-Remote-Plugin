@@ -544,7 +544,9 @@ def _fetch_headers(client: imaplib.IMAP4, uids: List[bytes]) -> List[Dict[str, A
         uid_str,
         "(UID FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID)])",
     )
-    if typ != "OK" or not data:
+    if typ != "OK":
+        raise RuntimeError("IMAP header fetch failed")
+    if not data:
         return []
     results: List[Dict[str, Any]] = []
     for part in data:

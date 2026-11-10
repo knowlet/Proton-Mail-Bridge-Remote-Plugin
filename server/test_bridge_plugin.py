@@ -104,6 +104,88 @@ class PluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["ok"])
         self.assertNotIn("sensitive local detail", json.dumps(result))
 
+    async def header_result(self, tool, fetch_result, *, search_data=b"1 2"):
+        """Run the actual read facade and header parser against synthetic IMAP."""
+        server = plugin.create_server(CONFIG)
+        client = MagicMock()
+        client.select.return_value = ("OK", [b"2"])
+        client.uid.side_effect = [("OK", [search_data]), fetch_result]
+
+        async def call(operation):
+            return operation(client)
+
+        with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock), \
+             patch.object(plugin.upstream, "_imap_call", side_effect=call):
+            result = await fn(server, tool)(ctx=SimpleNamespace(info=AsyncMock()), limit=2)
+        client.select.assert_called_once_with('"INBOX"', readonly=True)
+        return result, client
+
+    async def test_recent_rejected_header_fetch_is_not_success(self):
+        for status in ("NO", "BAD"):
+            with self.subTest(status=status):
+                result, client = await self.header_result(
+                    "proton_list_recent", (status, [b"private server failure detail"]))
+                self.assertFalse(result["ok"])
+                self.assertNotIn("data", result)
+                self.assertNotIn("private server", json.dumps(result))
+                self.assertEqual(client.uid.call_count, 2)
+
+    async def test_search_rejected_header_fetch_is_not_success(self):
+        for status in ("NO", "BAD"):
+            with self.subTest(status=status):
+                result, client = await self.header_result(
+                    "proton_search_emails", (status, [b"private server failure detail"]))
+                self.assertFalse(result["ok"])
+                self.assertNotIn("data", result)
+                self.assertNotIn("private server", json.dumps(result))
+                self.assertEqual(client.uid.call_count, 2)
+
+    async def test_rejected_fetch_does_not_return_partial_headers(self):
+        partial = [(b"1 (UID 1 RFC822.SIZE 42 FLAGS ()", b"Subject: private partial header\r\n\r\n")]
+        for tool in ("proton_list_recent", "proton_search_emails"):
+            with self.subTest(tool=tool):
+                result, _client = await self.header_result(tool, ("NO", partial))
+                self.assertFalse(result["ok"])
+                self.assertNotIn("private partial", json.dumps(result))
+
+    async def test_successful_empty_fetch_remains_success(self):
+        # Messages may be expunged after SEARCH and before an OK FETCH.
+        for tool in ("proton_list_recent", "proton_search_emails"):
+            for data in (None, [], [None]):
+                with self.subTest(tool=tool, data=data):
+                    result, client = await self.header_result(tool, ("OK", data))
+                    self.assertTrue(result["ok"])
+                    self.assertEqual(result["data"]["messages"], [])
+                    total = "total_matched" if tool == "proton_search_emails" else "total_in_mailbox"
+                    self.assertEqual(result["data"][total], 2)
+                    self.assertEqual(client.uid.call_count, 2)
+
+    async def test_empty_search_does_not_fetch_headers(self):
+        for tool in ("proton_list_recent", "proton_search_emails"):
+            with self.subTest(tool=tool):
+                result, client = await self.header_result(tool, ("NO", [b"must not fetch"]), search_data=b"")
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["data"]["messages"], [])
+                client.uid.assert_called_once_with("SEARCH", None, "ALL")
+
+    async def test_successful_headers_keep_metadata_and_peek(self):
+        data = [(b"1 (UID 2 RFC822.SIZE 42 FLAGS (\\Seen)",
+                 b"Subject: Synthetic header\r\nFrom: sender@example.test\r\nMessage-ID: <test@example.test>\r\n\r\n"), b")"]
+        for tool in ("proton_list_recent", "proton_search_emails"):
+            with self.subTest(tool=tool):
+                result, client = await self.header_result(tool, ("OK", data))
+                self.assertTrue(result["ok"])
+                messages = result["data"]["messages"]
+                self.assertEqual(len(messages), 1)
+                self.assertEqual(messages[0]["uid"], "2")
+                self.assertEqual(messages[0]["subject"], "Synthetic header")
+                self.assertEqual(messages[0]["flags"], ["\\Seen"])
+                self.assertEqual(messages[0]["size_bytes"], 42)
+                client.uid.assert_called_with(
+                    "FETCH", "2,1",
+                    "(UID FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS (FROM TO CC SUBJECT DATE MESSAGE-ID)])",
+                )
+
     async def test_mode_does_not_authorize_a_send(self):
         server = plugin.create_server({**CONFIG, "mode": "send"})
         with patch.object(plugin.MailAccess, "prepare", new_callable=AsyncMock) as prepare:

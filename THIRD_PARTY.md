@@ -1,9 +1,12 @@
 # Third-party source
 
-`server/vendor/proton_bridge_mcp.py` is an unchanged copy from
+`server/vendor/proton_bridge_mcp.py` is derived from
 [miketigerblue/proton-bridge-mcp](https://github.com/miketigerblue/proton-bridge-mcp),
 commit `1ba655f2922faea6cee4f8098e30c4caaefb9255`, upstream version 0.3.0.
 The original MIT license is retained in `server/vendor/LICENSE`.
+One local patch makes `_fetch_headers` raise on a failed IMAP FETCH instead of
+returning an empty successful result. The read facade's existing error handling
+redacts the failure; successful empty FETCH responses remain valid.
 `server/requirements.txt` retains the hash-pinned dependency versions and hashes
 from the same commit. Absolute developer-machine paths in comments were replaced
 with relative source filenames; no dependency versions or hashes were changed.
