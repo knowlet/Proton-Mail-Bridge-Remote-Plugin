@@ -1031,10 +1031,15 @@ async def proton_read_email(params: ReadEmailInput, ctx: Context) -> str:
         _select(client, params.mailbox, readonly=not params.mark_seen)
         item = "(RFC822)" if params.mark_seen else "(BODY.PEEK[])"
         typ, data = client.uid("FETCH", params.uid, item)
-        if typ != "OK" or not data or not data[0]:
+        if typ != "OK" or not data:
             raise RuntimeError(f"message UID {params.uid} not found in {params.mailbox}")
-        raw = data[0][1] if isinstance(data[0], tuple) else b""
-        return email.message_from_bytes(bytes(raw))
+        # Unsolicited flag responses can precede the requested body literal.
+        # Missing literal data is a failed read, not a successfully empty mail.
+        for part in data:
+            if (isinstance(part, tuple) and len(part) >= 2
+                    and isinstance(part[1], (bytes, bytearray))):
+                return email.message_from_bytes(bytes(part[1]))
+        raise RuntimeError(f"message UID {params.uid} body not returned")
     try:
         msg = await _imap_call(_op)
         plain, html, attachments = _extract_body(msg)
