@@ -123,6 +123,45 @@ class BodyAttachmentTests(unittest.TestCase):
         self.assertIn("ATTACHED_HTML_SENTINEL", html)
         self.assertEqual(attachments, [])
 
+    def test_inline_disposition_with_attachment_parameter_keeps_body(self):
+        inline = text_part("KEPT_INLINE_BODY")
+        inline.add_header("Content-Disposition", "inline", x_note="attachment")
+        msg = parsed(mixed_message(inline))
+        part = msg.get_payload()[0]
+        self.assertEqual(part.get("Content-Disposition"), 'inline; x-note="attachment"')
+        self.assertEqual(part.get_content_disposition(), "inline")
+        plain, html, attachments = plugin.upstream._extract_body(msg)
+        self.assertEqual(plain, "KEPT_INLINE_BODY\n")
+        self.assertEqual(html, "")
+        self.assertEqual(attachments, [])
+
+    def test_attachment_disposition_drops_body_despite_inline_parameter(self):
+        attached = text_part("DROPPED_ATTACHMENT_BODY")
+        attached.add_header("Content-Disposition", "attachment", x_note="inline")
+        msg = parsed(mixed_message(text_part("VISIBLE_BODY"), attached))
+        part = msg.get_payload()[1]
+        self.assertEqual(part.get("Content-Disposition"), 'attachment; x-note="inline"')
+        self.assertEqual(part.get_content_disposition(), "attachment")
+        plain, html, attachments = plugin.upstream._extract_body(msg)
+        self.assertEqual(plain, "VISIBLE_BODY\n")
+        self.assertNotIn("DROPPED_ATTACHMENT_BODY", plain)
+        self.assertEqual(html, "")
+        self.assertEqual(attachments, [{
+            "filename": "unnamed",
+            "content_type": "text/plain",
+            "size_bytes": len(b"DROPPED_ATTACHMENT_BODY\n"),
+        }])
+
+    def test_missing_content_disposition_keeps_text_body(self):
+        msg = parsed(mixed_message(text_part("KEPT_NO_DISPOSITION")))
+        part = msg.get_payload()[0]
+        self.assertIsNone(part.get("Content-Disposition"))
+        self.assertIsNone(part.get_content_disposition())
+        plain, html, attachments = plugin.upstream._extract_body(msg)
+        self.assertEqual(plain, "KEPT_NO_DISPOSITION\n")
+        self.assertEqual(html, "")
+        self.assertEqual(attachments, [])
+
     def test_related_and_named_inline_text_keep_existing_body_order(self):
         related = EmailMessage()
         related.make_related()

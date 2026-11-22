@@ -580,9 +580,12 @@ def _extract_body(msg: email.message.Message) -> Tuple[str, str, List[Dict[str, 
     while parts:
         part = parts.pop()
         ctype = part.get_content_type()
-        disp = str(part.get("Content-Disposition") or "").lower()
         filename = _decode_header(part.get_filename() or "")
-        if "attachment" in disp or (filename and ctype not in ("text/plain", "text/html")):
+        # Disposition type only. Parameter text such as x-note="attachment"
+        # is not the type and must not hide an inline body.
+        if part.get_content_disposition() == "attachment" or (
+            filename and ctype not in ("text/plain", "text/html")
+        ):
             payload = part.get_payload(decode=True)
             attachments.append({
                 "filename": filename or "unnamed",
