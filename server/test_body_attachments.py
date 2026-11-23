@@ -154,7 +154,8 @@ class BodyAttachmentTests(unittest.TestCase):
 
     def test_attachment_disposition_with_comment_drops_body(self):
         for header in ("attachment (file)", "attachment (a (nested) note); x-note=inline",
-                       "(lead) ATTACHMENT"):
+                       "(lead) ATTACHMENT", "attachment (export; original)",
+                       r"attachment (escaped \) paren; still comment)"):
             with self.subTest(header=header):
                 attached = text_part("DROPPED_COMMENTED_ATTACHMENT")
                 attached["Content-Disposition"] = header

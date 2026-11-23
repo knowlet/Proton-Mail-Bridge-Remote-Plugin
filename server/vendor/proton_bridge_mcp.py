@@ -573,19 +573,34 @@ def _disposition_type(part: email.message.Message) -> Optional[str]:
     """The Content-Disposition type, lowercased, without parameters or comments.
 
     compat32's get_content_disposition() keeps RFC 5322 comments, so
-    "attachment (file)" would not compare equal to "attachment".
+    "attachment (file)" would not compare equal to "attachment". Comments may
+    nest, contain ";" and use backslash quoting, so scan them rather than
+    splitting on ";" first.
     """
     value = part.get("Content-Disposition")
     if value is None:
         return None
-    token = str(value).split(";", 1)[0]
-    # Remove (possibly nested) comments from the innermost outwards.
-    while True:
-        stripped = re.sub(r"\([^()]*\)", " ", token)
-        if stripped == token:
+    text = str(value)
+    kept: List[str] = []
+    depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if depth:
+            if char == "\\":
+                index += 1
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+        elif char == "(":
+            depth = 1
+        elif char == ";":
             break
-        token = stripped
-    return token.strip().lower() or None
+        else:
+            kept.append(char)
+        index += 1
+    return "".join(kept).strip().lower() or None
 
 
 def _extract_body(msg: email.message.Message) -> Tuple[str, str, List[Dict[str, Any]]]:
