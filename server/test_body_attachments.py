@@ -152,6 +152,32 @@ class BodyAttachmentTests(unittest.TestCase):
             "size_bytes": len(b"DROPPED_ATTACHMENT_BODY\n"),
         }])
 
+    def test_attachment_disposition_with_comment_drops_body(self):
+        for header in ("attachment (file)", "attachment (a (nested) note); x-note=inline",
+                       "(lead) ATTACHMENT"):
+            with self.subTest(header=header):
+                attached = text_part("DROPPED_COMMENTED_ATTACHMENT")
+                attached["Content-Disposition"] = header
+                msg = parsed(mixed_message(text_part("VISIBLE_BODY"), attached))
+                part = msg.get_payload()[1]
+                self.assertNotEqual(part.get_content_disposition(), "attachment")
+                plain, html, attachments = plugin.upstream._extract_body(msg)
+                self.assertEqual(plain, "VISIBLE_BODY\n")
+                self.assertEqual(html, "")
+                self.assertEqual(attachments, [{
+                    "filename": "unnamed",
+                    "content_type": "text/plain",
+                    "size_bytes": len(b"DROPPED_COMMENTED_ATTACHMENT\n"),
+                }])
+
+    def test_inline_disposition_with_comment_keeps_body(self):
+        inline = text_part("KEPT_COMMENTED_INLINE")
+        inline["Content-Disposition"] = "inline (attachment)"
+        msg = parsed(mixed_message(inline))
+        plain, html, attachments = plugin.upstream._extract_body(msg)
+        self.assertEqual(plain, "KEPT_COMMENTED_INLINE\n")
+        self.assertEqual(attachments, [])
+
     def test_missing_content_disposition_keeps_text_body(self):
         msg = parsed(mixed_message(text_part("KEPT_NO_DISPOSITION")))
         part = msg.get_payload()[0]

@@ -569,6 +569,25 @@ def _fetch_headers(client: imaplib.IMAP4, uids: List[bytes]) -> List[Dict[str, A
     return results
 
 
+def _disposition_type(part: email.message.Message) -> Optional[str]:
+    """The Content-Disposition type, lowercased, without parameters or comments.
+
+    compat32's get_content_disposition() keeps RFC 5322 comments, so
+    "attachment (file)" would not compare equal to "attachment".
+    """
+    value = part.get("Content-Disposition")
+    if value is None:
+        return None
+    token = str(value).split(";", 1)[0]
+    # Remove (possibly nested) comments from the innermost outwards.
+    while True:
+        stripped = re.sub(r"\([^()]*\)", " ", token)
+        if stripped == token:
+            break
+        token = stripped
+    return token.strip().lower() or None
+
+
 def _extract_body(msg: email.message.Message) -> Tuple[str, str, List[Dict[str, Any]]]:
     plain_parts: List[str] = []
     html_parts: List[str] = []
@@ -583,7 +602,7 @@ def _extract_body(msg: email.message.Message) -> Tuple[str, str, List[Dict[str, 
         filename = _decode_header(part.get_filename() or "")
         # Disposition type only. Parameter text such as x-note="attachment"
         # is not the type and must not hide an inline body.
-        if part.get_content_disposition() == "attachment" or (
+        if _disposition_type(part) == "attachment" or (
             filename and ctype not in ("text/plain", "text/html")
         ):
             payload = part.get_payload(decode=True)
