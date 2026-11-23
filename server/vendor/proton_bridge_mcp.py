@@ -569,25 +569,68 @@ def _fetch_headers(client: imaplib.IMAP4, uids: List[bytes]) -> List[Dict[str, A
     return results
 
 
+def _disposition_type(part: email.message.Message) -> Optional[str]:
+    """The Content-Disposition type, lowercased, without parameters or comments.
+
+    compat32's get_content_disposition() keeps RFC 5322 comments, so
+    "attachment (file)" would not compare equal to "attachment". Comments may
+    nest, contain ";" and use backslash quoting, so scan them rather than
+    splitting on ";" first.
+    """
+    value = part.get("Content-Disposition")
+    if value is None:
+        return None
+    text = str(value)
+    kept: List[str] = []
+    depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if depth:
+            if char == "\\":
+                index += 1
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+        elif char == "(":
+            depth = 1
+        elif char == ";":
+            break
+        else:
+            kept.append(char)
+        index += 1
+    return "".join(kept).strip().lower() or None
+
+
 def _extract_body(msg: email.message.Message) -> Tuple[str, str, List[Dict[str, Any]]]:
     plain_parts: List[str] = []
     html_parts: List[str] = []
     attachments: List[Dict[str, Any]] = []
 
-    parts = msg.walk() if msg.is_multipart() else [msg]
-    for part in parts:
-        if part.is_multipart():
-            continue
+    # Unlike walk(), an explicit stack lets us prune an attachment's whole
+    # subtree. message/rfc822 attachments also report is_multipart() == True.
+    parts = [msg]
+    while parts:
+        part = parts.pop()
         ctype = part.get_content_type()
-        disp = str(part.get("Content-Disposition") or "").lower()
         filename = _decode_header(part.get_filename() or "")
-        if "attachment" in disp or (filename and ctype not in ("text/plain", "text/html")):
-            payload = part.get_payload(decode=True) or b""
+        # Disposition type only. Parameter text such as x-note="attachment"
+        # is not the type and must not hide an inline body.
+        if _disposition_type(part) == "attachment" or (
+            filename and ctype not in ("text/plain", "text/html")
+        ):
+            payload = part.get_payload(decode=True)
             attachments.append({
                 "filename": filename or "unnamed",
                 "content_type": ctype,
-                "size_bytes": len(payload),
+                # Structured containers have no decoded byte payload. Do not
+                # report zero or a reserialized length as their original size.
+                "size_bytes": None if part.is_multipart() else len(payload or b""),
             })
+            continue
+        if part.is_multipart():
+            parts.extend(reversed(part.get_payload()))
             continue
         payload = part.get_payload(decode=True) or b""
         charset = part.get_content_charset() or "utf-8"

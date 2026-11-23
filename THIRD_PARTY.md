@@ -1,9 +1,20 @@
 # Third-party source
 
-`server/vendor/proton_bridge_mcp.py` is an unchanged copy from
+`server/vendor/proton_bridge_mcp.py` is based on
 [miketigerblue/proton-bridge-mcp](https://github.com/miketigerblue/proton-bridge-mcp),
 commit `1ba655f2922faea6cee4f8098e30c4caaefb9255`, upstream version 0.3.0.
 The original MIT license is retained in `server/vendor/LICENSE`.
+One local patch makes body extraction stop at parts classified as attachments,
+including structured `message/rfc822` and `multipart/*` containers. Only the
+container's metadata is returned, not its descendants' content or metadata.
+For these containers, `size_bytes` is `null` because the parser has no decoded
+byte payload; leaf attachments retain their decoded payload length. A part is
+an attachment when `email.message.Message.get_content_disposition()` returns
+`attachment`, or when it has a filename and its type is neither `text/plain`
+nor `text/html`. That call returns the disposition type alone, so an `inline`
+part with a parameter such as `x-note="attachment"` stays in the body. Inline
+forwarded messages without a filename remain body content. Attachment download
+is not changed.
 `server/requirements.txt` retains the hash-pinned dependency versions and hashes
 from the same commit. Absolute developer-machine paths in comments were replaced
 with relative source filenames; no dependency versions or hashes were changed.
