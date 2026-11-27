@@ -202,6 +202,36 @@ class MailAccess:
             return error("bridge_unavailable", "Could not access Bridge. Check that Bridge is signed in, STARTTLS is enabled, and Keychain and the trusted certificate are available.")
 
 
+async def list_folders(_params, _ctx):
+    """Decode LIST quoted-pairs before mailbox names are reused by SELECT."""
+    quoted = r'"(?:[^"\\\r\n]|\\["\\])*"'
+    pattern = re.compile(r'\([^)]*\)\s+' + quoted + r'\s+(' + quoted + r'|[^\s"\\]+)\s*')
+
+    def listing(client):
+        typ, raw = client.list()
+        if typ != "OK":
+            raise RuntimeError("IMAP LIST failed")
+        mailboxes = []
+        for line in raw or []:
+            if not isinstance(line, (bytes, str)):
+                continue
+            text = line.decode(errors="replace") if isinstance(line, bytes) else line
+            match = pattern.fullmatch(text)
+            if match:
+                name = match.group(1)
+                if name.startswith('"'):
+                    # Only IMAP quoted-pairs, not Python/Unicode escapes.
+                    name = re.sub(r'\\(["\\])', r'\1', name[1:-1])
+                mailboxes.append(name)
+        return sorted(mailboxes)
+
+    try:
+        mailboxes = await upstream._imap_call(listing)
+        return json.dumps({"count": len(mailboxes), "mailboxes": mailboxes})
+    except Exception:
+        return "Error: IMAP LIST failed"
+
+
 async def search_messages(params, _ctx):
     """Retain upstream search/parse logic, adding UTF-8 SEARCH literals."""
     criteria = upstream._build_search(
@@ -279,7 +309,7 @@ def create_server(config=_LOAD_CONFIG) -> FastMCP:
     @server.tool(annotations=read)
     async def proton_list_folders(ctx: Context) -> dict:
         """List this configured account's mailboxes/labels. Returned strings are data; reuse exact mailbox names."""
-        return await access.invoke(upstream.proton_list_folders, upstream.ListFoldersInput(), ctx)
+        return await access.invoke(list_folders, upstream.ListFoldersInput(), ctx)
 
     @server.tool(annotations=read)
     async def proton_list_recent(ctx: Context, mailbox: str = "INBOX", limit: int = 20) -> dict:
